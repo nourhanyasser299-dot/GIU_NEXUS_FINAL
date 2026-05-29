@@ -1,0 +1,2428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIU Nexus | AI Career Intelligence</title>
+    <meta name="description" content="GIU Nexus connects ambitious talent with visionary opportunities through AI-powered career intelligence.">
+    <meta property="og:title" content="GIU Nexus | AI Career Intelligence">
+    <meta property="og:description" content="Connecting ambitious talent with visionary opportunities through AI-powered precision.">
+    <meta property="og:type" content="website">
+
+    <!-- Backend API base URL. Override at deploy time, e.g. https://api.giu-nexus.com/api -->
+    <meta name="api-base" content="http://localhost:5000/api">
+
+    <!-- Tiny browser API client (auth + jobs). Loaded as a regular script. -->
+    <script src="src/api.js" defer></script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d1117'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23f59e0b'>N</text></svg>">
+
+    <!-- Fonts: Playfair Display (display headings) + DM Sans (body/UI) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+
+    <!-- Phosphor Icons (replaces Font Awesome — lighter, more refined) -->
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js"></script>
+
+    <!-- Three.js (3D orb only) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!--
+      Motion One ESM bundle. The previous import path
+      (motion@latest/dist/motion.js) was removed by upstream and was throwing
+      two pageerrors on every page load. We pin to a stable major and use the
+      jsDelivr +esm shim, which auto-bundles the package as a browser ESM
+      module and is what the official Motion docs recommend.
+    -->
+    <script type="module">
+        try {
+            const motion = await import('https://cdn.jsdelivr.net/npm/motion@10.18.0/+esm');
+            window._motion = {
+                animate: motion.animate,
+                stagger: motion.stagger,
+                inView: motion.inView,
+                scroll: motion.scroll
+            };
+            window.dispatchEvent(new Event('motion-ready'));
+        } catch (err) {
+            // CDN failure shouldn't break the page — animations gracefully no-op.
+            console.warn('Motion failed to load; animations disabled:', err);
+        }
+    </script>
+
+    <style>
+        :root {
+            /* ── Phase 2: Distinctive palette — away from generic AI indigo ── */
+            --bg-deep: #030308;
+            --bg-surface: #0a0a14;
+            /* Primary: deep teal — trustworthy, forward-looking, not AI-purple */
+            --primary: #0d9488;
+            --primary-glow: rgba(13, 148, 136, 0.35);
+            --primary-dark: #0f766e;
+            /* Accent: amber gold — kept, it's the most distinctive element */
+            --accent: #f59e0b;
+            --accent-glow: rgba(245, 158, 11, 0.45);
+            --accent-dark: #d97706;
+            /* Supporting */
+            --violet: #7c3aed;
+            --teal: #14b8a6;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-subtle: #64748b;
+
+            /* ── Phase 1: Typography — DM Sans for body, Playfair for display ── */
+            --font-serif: 'Playfair Display', Georgia, serif;
+            --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+            /* Type scale */
+            --text-xs: 0.75rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+            --text-3xl: 1.875rem;
+            --text-4xl: 2.25rem;
+            --text-5xl: 3rem;
+            --text-6xl: 3.75rem;
+
+            /* Physics & Depth */
+            --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --cinematic: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.07);
+            --glass-blur: 16px;
+            --shadow-soft: 0 10px 30px -10px rgba(0,0,0,0.5);
+            --shadow-accent: 0 0 20px rgba(245, 158, 11, 0.12);
+            --shadow-primary: 0 0 20px rgba(13, 148, 136, 0.2);
+
+            /* Spacing rhythm (4pt base) */
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-6: 1.5rem;
+            --space-8: 2rem;
+            --space-12: 3rem;
+            --space-16: 4rem;
+            --space-24: 6rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            font-size: var(--text-base);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* 3D Canvas Layer */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none; /* Let clicks pass through */
+        }
+
+        /* App Container */
+        #app {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+        }
+
+        /* ── Typography System ── */
+        h1, h2, h3, h4 {
+            font-family: var(--font-serif);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.15;
+        }
+
+        /* Body text uses DM Sans — readable at all sizes */
+        p, li, td, th, label, input, button, span {
+            font-family: var(--font-sans);
+        }
+
+        .display-text {
+            font-size: clamp(2.5rem, 6vw, var(--text-6xl));
+            line-height: 1.05;
+            letter-spacing: -0.03em;
+        }
+        .section-title {
+            font-size: clamp(1.75rem, 3vw, var(--text-4xl));
+            margin-bottom: var(--space-8);
+            line-height: 1.2;
+        }
+        .card-title {
+            font-size: var(--text-xl);
+            font-family: var(--font-serif);
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .body-text {
+            font-family: var(--font-sans);
+            font-size: var(--text-base);
+            line-height: 1.65;
+            max-width: 65ch;
+        }
+        .caption {
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .label-text {
+            font-family: var(--font-sans);
+            font-size: var(--text-xs);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .text-accent { color: var(--accent); }
+        .text-primary { color: var(--primary); }
+        .text-muted { color: var(--text-muted); }
+        .text-gradient {
+            background: linear-gradient(135deg, #fff 0%, var(--teal) 60%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ── Layout & Grid ── */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 var(--space-8);
+        }
+
+        .section-padding { padding: 7.5rem 0; }
+
+        .grid-layout { display: grid; gap: var(--space-8); }
+        .grid-3 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+        .grid-2 { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+
+        /* ── Phase 2: Card system — 3 consistent variants, no inline overrides ── */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: var(--space-8); /* card-md default */
+            box-shadow: var(--shadow-soft);
+            transition: transform 0.3s var(--spring), box-shadow 0.3s var(--cinematic), border-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .glass-card.card-sm { padding: var(--space-4); }
+        .glass-card.card-lg { padding: var(--space-12); }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            opacity: 0.6;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px) scale(1.005);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.6), var(--shadow-primary);
+            border-color: rgba(13, 148, 136, 0.25);
+            z-index: 10;
+        }
+
+        .glass-card:active {
+            transform: translateY(-2px) scale(0.99);
+        }
+
+        /* Clickable card cursor */
+        .glass-card[onclick], .job-card { cursor: pointer; }
+
+        /* AI Accent Elements */
+        .ai-glow {
+            box-shadow: 0 0 15px var(--accent-glow);
+            border-color: var(--accent);
+        }
+        
+        .ai-pulse {
+            animation: pulse-gold 2s infinite;
+        }
+
+        @keyframes pulse-gold {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+
+        /* ── Buttons — Phase 1: accessible focus states ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: 0.75rem 1.75rem;
+            border-radius: 8px;
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: transform 0.15s var(--cinematic), filter 0.15s ease, box-shadow 0.15s ease;
+            border: none;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            color: white;
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .btn-ghost {
+            background: var(--glass-bg);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.08);
+        }
+
+        .btn:active {
+            transform: scale(0.97) translateY(0);
+        }
+
+        /* Loading state */
+        .btn.loading {
+            pointer-events: none;
+            opacity: 0.75;
+        }
+        .btn.loading::after {
+            content: '';
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-left: var(--space-2);
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Navbar — Phase 1: mobile hamburger added ── */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.25rem 0;
+            z-index: 100;
+            background: rgba(3, 3, 8, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            transition: transform 0.3s ease, background 0.3s ease;
+        }
+
+        .nav-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: white;
+            font-family: var(--font-serif);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .logo-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: var(--space-8);
+            align-items: center;
+        }
+
+        .nav-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: var(--text-sm);
+            font-family: var(--font-sans);
+            font-weight: 500;
+            transition: color 0.25s ease;
+            position: relative;
+            padding: var(--space-1) 0;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-main);
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--accent);
+            border-radius: 1px;
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .nav-link:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 4px;
+            border-radius: 3px;
+        }
+
+        /* ── Phase 1: Hamburger menu ── */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: var(--space-2);
+            border-radius: 6px;
+            transition: background 0.2s ease;
+        }
+        .hamburger:hover { background: var(--glass-bg); }
+        .hamburger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+        .hamburger span {
+            display: block;
+            width: 22px; height: 2px;
+            background: var(--text-main);
+            border-radius: 2px;
+            transition: transform 0.3s var(--cinematic), opacity 0.3s ease;
+            transform-origin: center;
+        }
+        .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        .hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+        .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        /* Mobile nav overlay */
+        .mobile-nav {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 3, 8, 0.97);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            z-index: 99;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-8);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .mobile-nav.open {
+            display: flex;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .mobile-nav .nav-link {
+            font-size: var(--text-2xl);
+            font-family: var(--font-serif);
+            color: var(--text-muted);
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .mobile-nav .nav-link.visible {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.4s ease, transform 0.4s var(--cinematic);
+        }
+
+        /* ── View Management — Phase 1: min-h-[100dvh] ── */
+        .view-section {
+            display: none;
+            padding-top: 80px;
+            min-height: 100dvh;
+        }
+
+        .view-section.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .view-section.active { animation: fadeIn 0.5s var(--cinematic) both; }
+
+        /* ── Hero Section — Phase 1: fixed floating fragments ── */
+        #hero-view {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 100dvh;
+            padding-top: 0;
+            position: relative;
+        }
+
+        .hero-content {
+            max-width: 820px;
+            z-index: 5;
+            pointer-events: none;
+        }
+        .hero-content > * { pointer-events: auto; }
+
+        .hero-subtitle {
+            font-family: var(--font-sans);
+            font-size: var(--text-lg);
+            color: var(--text-muted);
+            line-height: 1.65;
+            max-width: 55ch;
+            margin: 0 auto;
+        }
+
+        /* ── Phase 1: Floating fragments — fixed positioning ── */
+        .hero-fragment {
+            position: absolute;
+            padding: var(--space-4) var(--space-6);
+            text-align: left;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .hero-fragment-left {
+            left: 2rem;
+            top: 30%;
+            transform: translateY(-50%);
+        }
+        .hero-fragment-right {
+            right: 2rem;
+            bottom: 25%;
+        }
+        .fragment-label {
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            margin-bottom: var(--space-1);
+        }
+        .fragment-sub {
+            font-family: var(--font-sans);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+        }
+
+        /* Hide fragments on small screens */
+        @media (max-width: 1100px) {
+            .hero-fragment { display: none; }
+        }
+
+        /* Hero stats strip (mobile replacement for fragments) */
+        .hero-stats {
+            display: none;
+            gap: var(--space-6);
+            justify-content: center;
+            margin-top: var(--space-8);
+            flex-wrap: wrap;
+        }
+        .hero-stat {
+            text-align: center;
+        }
+        .hero-stat-value {
+            font-family: var(--font-serif);
+            font-size: var(--text-2xl);
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .hero-stat-label {
+            font-family: var(--font-sans);
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        @media (max-width: 1100px) {
+            .hero-stats { display: flex; }
+        }
+
+        .role-selector {
+            display: inline-flex;
+            background: rgba(255,255,255,0.04);
+            padding: 4px;
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            margin-top: var(--space-8);
+            backdrop-filter: blur(10px);
+        }
+
+        .role-btn {
+            padding: 0.7rem 1.75rem;
+            border-radius: 40px;
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            cursor: pointer;
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            font-weight: 500;
+            transition: all 0.3s var(--cinematic);
+        }
+
+        .role-btn.active {
+            background: var(--text-main);
+            color: var(--bg-deep);
+            font-weight: 700;
+            box-shadow: 0 0 12px rgba(255,255,255,0.2);
+        }
+
+        .role-btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 9px;
+            border-radius: 4px;
+            font-family: var(--font-sans);
+            font-size: var(--text-xs);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+        .badge-indigo { background: rgba(13,148,136,0.15); color: #2dd4bf; border: 1px solid rgba(13,148,136,0.3); }
+        .badge-teal   { background: rgba(20,184,166,0.15); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.3); }
+        .badge-gold   { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+        .badge-red    { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+        /* ── Skill chips ── */
+        .skill-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--glass-border);
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            margin-right: var(--space-2);
+            margin-bottom: var(--space-2);
+            opacity: 0;
+            transform: scale(0.85);
+        }
+        .skill-chip.ai-magic {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(245,158,11,0.08);
+        }
+
+        /* ── Progress bar ── */
+        .progress-track {
+            height: 5px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: var(--space-2);
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            width: 0%;
+            transition: width 1.2s var(--ease-out-expo);
+            border-radius: 3px;
+        }
+
+        /* ── Phase 3: Skeleton loaders ── */
+        .skeleton {
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+        .skeleton::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.6s infinite;
+        }
+        @keyframes shimmer {
+            0%   { background-position: -200% 0; }
+            100% { background-position:  200% 0; }
+        }
+        .skeleton-card { height: 220px; border-radius: 16px; }
+        .skeleton-line { height: 14px; margin-bottom: var(--space-2); }
+        .skeleton-line.short { width: 60%; }
+
+        /* ── Phase 3: Empty states ── */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-16) var(--space-8);
+            text-align: center;
+            gap: var(--space-4);
+        }
+        .empty-state-icon {
+            width: 56px; height: 56px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+        }
+        .empty-state h4 {
+            font-family: var(--font-serif);
+            font-size: var(--text-xl);
+            color: var(--text-main);
+        }
+        .empty-state p {
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            color: var(--text-muted);
+            max-width: 32ch;
+        }
+
+        /* ── Kanban ── */
+        .kanban-board {
+            display: flex;
+            gap: var(--space-6);
+            overflow-x: auto;
+            padding-bottom: var(--space-4);
+            scrollbar-width: thin;
+        }
+        .kanban-col {
+            min-width: 280px;
+            background: rgba(0,0,0,0.18);
+            border-radius: 12px;
+            padding: var(--space-4);
+            border: 1px solid var(--glass-border);
+            flex-shrink: 0;
+        }
+        .kanban-header {
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            margin-bottom: var(--space-4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+        }
+        .kanban-item {
+            background: var(--glass-bg);
+            padding: var(--space-4);
+            border-radius: 8px;
+            margin-bottom: var(--space-3);
+            border: 1px solid var(--glass-border);
+            cursor: grab;
+            transition: transform 0.2s var(--spring), box-shadow 0.2s ease;
+        }
+        .kanban-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px -5px rgba(0,0,0,0.4);
+        }
+        .kanban-item:active { cursor: grabbing; }
+        .kanban-item h4 {
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            font-weight: 600;
+            margin-bottom: var(--space-1);
+        }
+        .kanban-empty {
+            padding: var(--space-6);
+            text-align: center;
+            color: var(--text-subtle);
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            border: 1px dashed var(--glass-border);
+            border-radius: 8px;
+        }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.82);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-4);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            background: #0c0d18;
+            border: 1px solid var(--glass-border);
+            width: 100%;
+            max-width: 820px;
+            max-height: 90dvh;
+            overflow-y: auto;
+            border-radius: 20px;
+            padding: var(--space-12);
+            transform: scale(0.95) translateY(16px);
+            transition: transform 0.4s var(--cinematic);
+            position: relative;
+        }
+        .modal-overlay.open .modal-content {
+            transform: scale(1) translateY(0);
+        }
+        .close-modal {
+            position: absolute;
+            top: var(--space-6);
+            right: var(--space-6);
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        .close-modal:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+        .close-modal:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+        /* ── Phase 1: Accessible form inputs ── */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+        }
+        .form-label {
+            font-family: var(--font-sans);
+            font-size: var(--text-sm);
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: rgba(0,0,0,0.35);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            font-size: var(--text-base);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            outline: none;
+        }
+        .form-input::placeholder { color: var(--text-subtle); }
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(13,148,136,0.2);
+        }
+        .form-input.error {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+        }
+        .field-error {
+            font-family: var(--font-sans);
+            font-size: var(--text-xs);
+            color: #f87171;
+            display: none;
+        }
+        .field-error.visible { display: block; }
+
+        /* ── Admin table ── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-sans);
+        }
+        .data-table th {
+            padding: var(--space-4);
+            text-align: left;
+            font-size: var(--text-xs);
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .data-table td {
+            padding: var(--space-4);
+            font-size: var(--text-sm);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-deep); }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        /* ── AI glow accent ── */
+        .ai-glow {
+            box-shadow: 0 0 20px var(--accent-glow);
+            border-color: rgba(245,158,11,0.35) !important;
+        }
+        .ai-pulse { animation: pulse-gold 2.5s infinite; }
+        @keyframes pulse-gold {
+            0%   { box-shadow: 0 0 0 0 rgba(245,158,11,0.35); }
+            70%  { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
+            100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+        }
+
+        /* ── Stat counter cards ── */
+        .stat-value {
+            font-family: var(--font-serif);
+            font-size: var(--text-5xl);
+            font-weight: 700;
+            line-height: 1;
+            margin: var(--space-2) 0;
+        }
+        .stat-label {
+            font-family: var(--font-sans);
+            font-size: var(--text-xs);
+            font-weight: 500;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        /* ── Phase 4: prefers-reduced-motion ── */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .display-text { font-size: clamp(2rem, 8vw, 2.75rem); }
+            .section-title { font-size: var(--text-3xl); }
+            .nav-links { display: none; }
+            .hamburger { display: flex; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .section-padding { padding: var(--space-16) 0; }
+            .container { padding: 0 var(--space-4); }
+            .modal-content { padding: var(--space-8); border-radius: 16px; }
+            .auth-split { flex-direction: column; }
+            .auth-promo { display: none; }
+        }
+
+        @media (max-width: 480px) {
+            .role-selector { flex-direction: column; border-radius: 12px; }
+            .role-btn { border-radius: 8px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Background Layer -->
+    <div id="canvas-container" aria-hidden="true"></div>
+
+    <!-- Mobile Nav Overlay -->
+    <div class="mobile-nav" id="mobile-nav" role="dialog" aria-label="Navigation menu">
+        <a href="#" class="nav-link" onclick="switchView('hero-view'); closeMobileNav()">Home</a>
+        <a href="#" class="nav-link" onclick="switchView('job-board'); closeMobileNav()">Jobs</a>
+        <a href="#" class="nav-link" onclick="switchView('seeker-dash'); closeMobileNav()">Talent</a>
+        <a href="#" class="nav-link" onclick="switchView('recruiter-dash'); closeMobileNav()">Recruiters</a>
+        <a href="#" class="nav-link" onclick="switchView('admin-dash'); closeMobileNav()">Admin</a>
+        <button class="btn btn-gold" onclick="switchView('auth-view'); closeMobileNav()">Sign In</button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
+        <div class="container nav-inner">
+            <div class="logo" onclick="switchView('hero-view')" role="button" tabindex="0" aria-label="GIU Nexus home">
+                <div class="logo-icon" aria-hidden="true">
+                    <ph-cube weight="bold" style="color:white;font-size:1rem;"></ph-cube>
+                </div>
+                GIU NEXUS
+            </div>
+            <div class="nav-links" role="list">
+                <a href="#home" class="nav-link active" role="listitem" onclick="switchView('hero-view'); return false;">Home</a>
+                <a href="#jobs" class="nav-link" role="listitem" onclick="switchView('job-board'); return false;">Jobs</a>
+                <a href="#talent" class="nav-link" role="listitem" onclick="switchView('seeker-dash'); return false;">Talent</a>
+                <a href="#recruiters" class="nav-link" role="listitem" onclick="switchView('recruiter-dash'); return false;">Recruiters</a>
+<a href="#admin" class="nav-link" role="listitem" onclick="switchView('admin-dash'); return false;">Admin</a>
+            </div>
+            <div style="display:flex;align-items:center;gap:var(--space-3);">
+                <button class="btn btn-primary" onclick="switchView('auth-view')">Sign In</button>
+                <button class="hamburger" id="hamburger" aria-label="Open navigation menu" aria-expanded="false" onclick="toggleMobileNav()">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="app">
+
+        <!-- HERO -->
+        <section id="hero-view" class="view-section active" style="display:flex;">
+            <div class="container hero-content">
+                <p class="label-text" style="margin-bottom:var(--space-4);color:var(--accent);">
+                    <ph-sparkle weight="fill" style="vertical-align:middle;margin-right:4px;"></ph-sparkle>
+                    AI-Powered Career Intelligence
+                </p>
+                <h1 class="display-text text-gradient" style="margin-bottom:var(--space-6);">
+                    The Future of<br>Career Intelligence
+                </h1>
+                <p class="hero-subtitle" style="margin-bottom:var(--space-8);">
+                    Connecting ambitious talent with visionary opportunities through AI-powered precision.
+                </p>
+
+                <div class="role-selector" role="group" aria-label="Select your role">
+                    <button class="role-btn active" onclick="selectRole(this,'seeker')" aria-pressed="true">Job Seeker</button>
+                    <button class="role-btn" onclick="selectRole(this,'recruiter')" aria-pressed="false">Recruiter</button>
+                    <button class="role-btn" onclick="selectRole(this,'admin')" aria-pressed="false">Admin</button>
+                </div>
+
+                <div style="margin-top:var(--space-12);">
+                    <button class="btn btn-gold" style="padding:1rem 2.5rem;font-size:var(--text-base);" onclick="goToDashboard()">
+                        <ph-rocket-launch weight="bold"></ph-rocket-launch>
+                        Launch Experience
+                    </button>
+                </div>
+
+                <!-- Mobile stats strip (replaces broken absolute fragments) -->
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <div class="hero-stat-value">98%</div>
+                        <div class="hero-stat-label">Match Accuracy</div>
+                    </div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-value" style="color:var(--primary);">1.2k</div>
+                        <div class="hero-stat-label">Active Roles</div>
+                    </div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-value" style="color:var(--teal);">4.8s</div>
+                        <div class="hero-stat-label">Avg Match Time</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating fragments — desktop only, properly positioned -->
+            <div class="glass-card hero-fragment hero-fragment-left card-sm" aria-hidden="true">
+                <div class="fragment-label text-accent">
+                    <ph-lightning weight="fill" style="vertical-align:middle;"></ph-lightning> 98% Match
+                </div>
+                <div class="fragment-sub">Senior AI Engineer</div>
+            </div>
+            <div class="glass-card hero-fragment hero-fragment-right card-sm" aria-hidden="true">
+                <div class="fragment-label text-primary">
+                    <ph-users weight="fill" style="vertical-align:middle;"></ph-users> 1.2k Applicants
+                </div>
+                <div class="fragment-sub">Nebula Corp</div>
+            </div>
+        </section>
+
+        <!-- JOB BOARD -->
+        <section id="job-board" class="view-section">
+            <div class="container section-padding">
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:var(--space-12);flex-wrap:wrap;gap:var(--space-4);">
+                    <div>
+                        <h2 class="section-title" style="margin-bottom:var(--space-2);">Explore <span class="text-primary">Opportunities</span></h2>
+                        <p class="caption">Curated roles for high-potential candidates.</p>
+                    </div>
+                    <div class="glass-card card-sm" style="display:flex;align-items:center;gap:var(--space-3);min-width:240px;">
+                        <ph-magnifying-glass style="color:var(--text-muted);flex-shrink:0;"></ph-magnifying-glass>
+                        <input type="search" placeholder="Search roles..." aria-label="Search job roles"
+                            style="background:transparent;border:none;color:var(--text-main);outline:none;font-family:var(--font-sans);font-size:var(--text-sm);width:100%;">
+                    </div>
+                </div>
+
+                <!-- Hugging Face: CV-to-jobs semantic match (sentence-transformers/all-MiniLM-L6-v2) -->
+                <div class="glass-card" style="margin-bottom:var(--space-8);">
+                    <p class="label-text text-accent" style="margin-bottom:var(--space-3);">
+                        <ph-sparkle weight="fill" style="vertical-align:middle;margin-right:4px;"></ph-sparkle>
+                        Score these jobs against my CV
+                    </p>
+                    <p class="caption" style="margin-bottom:var(--space-3);">
+                        Paste a CV excerpt — Hugging Face semantic similarity (<code style="font-family:var(--font-mono);font-size:0.85em;">all-MiniLM-L6-v2</code>) returns a 0–100 match score plus the requirements you don't mention yet.
+                    </p>
+                    <textarea id="match-cv-input"
+                        aria-label="CV text for match scoring"
+                        placeholder="e.g. 5 years building React + Node.js apps, CI/CD with GitHub Actions, comfortable with PostgreSQL and AWS."
+                        rows="3"
+                        style="width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--glass-border);border-radius:8px;padding:var(--space-3);color:var(--text-main);font-family:var(--font-sans);font-size:var(--text-sm);resize:vertical;margin-bottom:var(--space-3);"></textarea>
+                    <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                        <button id="match-run-btn" class="btn btn-primary" type="button" onclick="runMatchScoring()">
+                            <ph-sparkle weight="bold" style="vertical-align:middle;margin-right:4px;"></ph-sparkle>
+                            Score Jobs
+                        </button>
+                        <button id="match-clear-btn" class="btn" type="button" onclick="clearMatchScores()" style="background:rgba(255,255,255,0.06);color:var(--text-main);">Clear</button>
+                        <span id="match-run-status" class="caption" role="status" aria-live="polite"></span>
+                    </div>
+                </div>
+
+                <!-- Phase 3: Skeleton loaders shown briefly, then real cards -->
+                <div class="grid-layout grid-3" id="job-grid-skeleton" aria-hidden="true">
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+
+                <!--
+                  Real job cards are rendered into this grid by the loadJobs() handler in
+                  Frontend/src/api.js wiring (see grid.innerHTML below). The static demo
+                  cards that used to live here were removed because they invoked
+                  openJobModal() with no jobId, which (post-PR #6) opens an empty modal.
+                -->
+                <div class="grid-layout grid-3" id="job-grid" style="display:none;"></div>
+            </div>
+        </section>
+
+        <!-- SEEKER DASHBOARD -->
+        <section id="seeker-dash" class="view-section">
+            <div class="container section-padding">
+                <div class="grid-layout grid-2">
+                    <!-- Left: Profile & AI Stats -->
+                    <div>
+                        <div class="glass-card ai-glow" style="margin-bottom:var(--space-8);">
+                            <div style="display:flex;align-items:center;gap:var(--space-6);margin-bottom:var(--space-6);">
+                                <img src="https://picsum.photos/seed/user/80/80" alt="Alex Chen profile photo" width="80" height="80"
+                                    style="border-radius:50%;border:2px solid var(--accent);flex-shrink:0;">
+                                <div>
+                                    <h2 class="text-gradient" style="font-size:var(--text-2xl);margin-bottom:var(--space-1);">Alex Chen</h2>
+                                    <p class="caption">Computer Science, Class of '24</p>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid var(--glass-border);padding-top:var(--space-4);">
+                                <p class="label-text text-accent" style="margin-bottom:var(--space-4);">
+                                    <ph-sparkle weight="fill" style="vertical-align:middle;margin-right:4px;"></ph-sparkle>
+                                    AI Skill Extract
+                                </p>
+                                <p class="caption" style="margin-bottom:var(--space-3);">
+                                    Paste the body of your CV — Hugging Face NER (<code style="font-family:var(--font-mono);font-size:0.85em;">jjzha/jobbert_skill_extraction</code>) tags every skill mention.
+                                </p>
+                                <textarea id="skill-extract-input"
+                                    aria-label="CV text for AI skill extraction"
+                                    placeholder="e.g. Built React + TypeScript dashboards on Node.js. Experience with PostgreSQL, Docker, and AWS Lambda."
+                                    rows="4"
+                                    style="width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--glass-border);border-radius:8px;padding:var(--space-3);color:var(--text-main);font-family:var(--font-sans);font-size:var(--text-sm);resize:vertical;margin-bottom:var(--space-3);"></textarea>
+                                <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;margin-bottom:var(--space-4);">
+                                    <button id="skill-extract-btn" class="btn btn-primary" type="button" onclick="runSkillExtraction()">
+                                        <ph-sparkle weight="bold" style="vertical-align:middle;margin-right:4px;"></ph-sparkle>
+                                        Extract Skills
+                                    </button>
+                                    <span id="skill-extract-status" class="caption" role="status" aria-live="polite"></span>
+                                </div>
+                                <div id="skill-container" aria-live="polite"></div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card">
+                            <h3 class="card-title" style="margin-bottom:var(--space-6);">Application Status</h3>
+                            <div style="display:flex;flex-direction:column;gap:var(--space-4);">
+                                <div>
+                                    <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-2);">
+                                        <span class="caption">Interview Stage</span>
+                                        <span style="font-size:var(--text-sm);font-weight:600;">3</span>
+                                    </div>
+                                    <div class="progress-track">
+                                        <div class="progress-fill" style="width:30%;background:var(--violet);"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-2);">
+                                        <span class="caption">Offers</span>
+                                        <span style="font-size:var(--text-sm);font-weight:600;color:var(--accent);">1</span>
+                                    </div>
+                                    <div class="progress-track">
+                                        <div class="progress-fill" style="width:10%;background:var(--accent);"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Recommendations -->
+                    <div>
+                        <h3 class="section-title" style="font-size:var(--text-3xl);">For You</h3>
+                        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+                            <div class="glass-card" style="display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <h4 class="card-title" style="font-size:var(--text-base);margin-bottom:var(--space-1);">Product Designer</h4>
+                                    <p class="caption">Aurora Labs</p>
+                                </div>
+                                <span style="font-family:var(--font-serif);font-weight:700;font-size:var(--text-xl);color:var(--accent);">98%</span>
+                            </div>
+                            <div class="glass-card" style="display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <h4 class="card-title" style="font-size:var(--text-base);margin-bottom:var(--space-1);">Junior Developer</h4>
+                                    <p class="caption">CyberDyne</p>
+                                </div>
+                                <span style="font-family:var(--font-serif);font-weight:700;font-size:var(--text-xl);color:var(--primary);">88%</span>
+                            </div>
+                            <div class="glass-card" style="display:flex;justify-content:space-between;align-items:center;">
+                                <div>
+                                    <h4 class="card-title" style="font-size:var(--text-base);margin-bottom:var(--space-1);">Data Analyst</h4>
+                                    <p class="caption">Tyrell Corp</p>
+                                </div>
+                                <span style="font-family:var(--font-serif);font-weight:700;font-size:var(--text-xl);color:var(--primary);">76%</span>
+                            </div>
+                            <!-- Phase 3: Empty state (shown when no recommendations) -->
+                            <div class="empty-state" id="recs-empty" style="display:none;">
+                                <div class="empty-state-icon">
+                                    <ph-briefcase weight="regular"></ph-briefcase>
+                                </div>
+                                <h4>No recommendations yet</h4>
+                                <p>Complete your profile to unlock AI-matched opportunities.</p>
+                                <button class="btn btn-primary" style="margin-top:var(--space-2);">Complete Profile</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- RECRUITER DASHBOARD -->
+        <section id="recruiter-dash" class="view-section">
+            <div class="container section-padding">
+                <div class="glass-card" style="margin-bottom:var(--space-8);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-6);flex-wrap:wrap;gap:var(--space-4);">
+                        <h3 class="card-title">Hiring Pipeline</h3>
+                    <button class="btn btn-primary" onclick="switchView('job-board')">
+    <ph-plus weight="bold"></ph-plus> New Job
+</button>
+                    </div>
+
+                    <div class="kanban-board" role="region" aria-label="Hiring pipeline kanban board">
+                        <div class="kanban-col" role="list" aria-label="Applied candidates">
+                            <div class="kanban-header">
+                                <span>Applied</span>
+                                <span class="badge badge-indigo">12</span>
+                            </div>
+                            <div class="kanban-item" draggable="true" role="listitem">
+                                <h4>Sarah Jones</h4>
+                                <p class="caption">UX Role</p>
+                                <div style="margin-top:var(--space-2);"><span class="badge badge-gold">Top Talent</span></div>
+                            </div>
+                            <div class="kanban-item" draggable="true" role="listitem">
+                                <h4>Mike Ross</h4>
+                                <p class="caption">Legal</p>
+                            </div>
+                        </div>
+                        <div class="kanban-col" role="list" aria-label="Screening candidates">
+                            <div class="kanban-header">
+                                <span>Screening</span>
+                                <span class="badge badge-teal">4</span>
+                            </div>
+                            <div class="kanban-item" draggable="true" role="listitem">
+                                <h4>Jessica Pearson</h4>
+                                <p class="caption">Manager</p>
+                            </div>
+                        </div>
+                        <div class="kanban-col" role="list" aria-label="Interview candidates">
+                            <div class="kanban-header">
+                                <span>Interview</span>
+                                <span class="badge">2</span>
+                            </div>
+                            <div class="kanban-item" draggable="true" role="listitem">
+                                <h4>Harvey Specter</h4>
+                                <p class="caption">Senior Partner</p>
+                            </div>
+                        </div>
+                        <div class="kanban-col" role="list" aria-label="Offer stage candidates">
+                            <div class="kanban-header">
+                                <span>Offer</span>
+                                <span class="badge">0</span>
+                            </div>
+                            <!-- Phase 3: Empty state for kanban column -->
+                            <div class="kanban-empty" aria-label="No candidates at offer stage">
+                                <ph-user-plus weight="regular" style="font-size:1.5rem;display:block;margin:0 auto var(--space-2);"></ph-user-plus>
+                                No candidates yet
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ADMIN PANEL -->
+        <section id="admin-dash" class="view-section">
+            <div class="container section-padding">
+                <div class="grid-layout grid-3" style="margin-bottom:var(--space-8);">
+                    <div class="glass-card">
+                        <p class="stat-label">Total Users</p>
+                        <div class="stat-value counter" data-target="12450">0</div>
+                    </div>
+                    <div class="glass-card">
+                        <p class="stat-label">Active Jobs</p>
+                        <div class="stat-value counter" data-target="843">0</div>
+                    </div>
+                    <div class="glass-card ai-glow">
+                        <p class="stat-label text-accent">AI Match Accuracy</p>
+                        <div class="stat-value counter text-accent" data-target="98">0</div>
+                        <p class="caption" style="margin-top:var(--space-1);">% increase this quarter</p>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <h3 class="card-title" style="margin-bottom:var(--space-6);">Recruiter Approval Queue</h3>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" aria-label="Recruiter approval queue">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Company</th>
+                                    <th scope="col">Representative</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Stark Industries</td>
+                                    <td>Pepper Potts</td>
+                                    <td><span class="badge badge-gold">Pending</span></td>
+                                    <td>
+                                        <button class="btn btn-primary" style="padding:0.4rem 1rem;font-size:var(--text-xs);">
+                                            Approve
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Wayne Enterprises</td>
+                                    <td>Bruce Wayne</td>
+                                    <td><span class="badge badge-teal">Verified</span></td>
+                                    <td><span class="caption">—</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Oscorp</td>
+                                    <td>Norman Osborn</td>
+                                    <td><span class="badge badge-red">Flagged</span></td>
+                                    <td>
+                                        <button class="btn btn-ghost" style="padding:0.4rem 1rem;font-size:var(--text-xs);">
+                                            Review
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            </section>
+        <!-- AUTH VIEW -->
+        <section id="auth-view" class="view-section" style="display:none;align-items:center;justify-content:center;">
+            <div class="glass-card auth-split" style="width:100%;max-width:900px;padding:0;display:flex;overflow:hidden;min-height:580px;border-radius:20px;">
+                <!-- Form side -->
+                <div style="flex:1;padding:var(--space-12);display:flex;flex-direction:column;justify-content:center;">
+                    <h2 id="auth-heading" style="font-size:var(--text-3xl);margin-bottom:var(--space-2);">Welcome Back</h2>
+                    <p id="auth-subheading" class="caption" style="margin-bottom:var(--space-8);">Access the nexus of talent.</p>
+
+                    <!-- Name input — only used in register mode -->
+                    <div class="form-group" id="auth-name-group" style="display:none;">
+                        <label class="form-label" for="auth-name">Full name</label>
+                        <input class="form-input" type="text" id="auth-name" name="name"
+                            autocomplete="name" placeholder="Ada Lovelace">
+                        <span class="field-error" id="name-error" role="alert">Name is required.</span>
+                    </div>
+
+                    <!-- Company input — only shown in register mode for recruiters; backend
+                         validator on POST /api/auth/register requires `company` for that role. -->
+                    <div class="form-group" id="auth-company-group" style="display:none;">
+                        <label class="form-label" for="auth-company">Company</label>
+                        <input class="form-input" type="text" id="auth-company" name="company"
+                            autocomplete="organization" placeholder="Acme Corp">
+                        <span class="field-error" id="company-error" role="alert">Company name is required.</span>
+                    </div>
+
+                    <!-- Phase 1: Properly connected labels + accessible inputs -->
+                    <div class="form-group">
+                        <label class="form-label" for="auth-email">Email address</label>
+                        <input class="form-input" type="email" id="auth-email" name="email"
+                            autocomplete="email" placeholder="you@giu.edu.eg" required>
+                        <span class="field-error" id="email-error" role="alert">Enter a valid email address.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="auth-password">Password</label>
+                        <input class="form-input" type="password" id="auth-password" name="password"
+                            autocomplete="current-password" placeholder="••••••••" required minlength="8">
+                        <span class="field-error" id="password-error" role="alert">Password must be at least 8 characters.</span>
+                    </div>
+
+                    <!-- API status (success / error from backend) -->
+                    <div id="auth-status" role="status" aria-live="polite"
+                        style="display:none;margin-bottom:var(--space-4);padding:0.75rem 1rem;border-radius:8px;font-size:var(--text-sm);"></div>
+
+                    <!-- Phase 3: Loading state on submit -->
+                    <button class="btn btn-gold" id="signin-btn" style="width:100%;padding:1rem;margin-bottom:var(--space-4);"
+                        onclick="handleAuthSubmit(event)">
+                        Sign In
+                    </button>
+                    <div style="text-align:center;">
+                        <a href="#" class="caption" id="auth-toggle-link"
+                            style="color:var(--text-muted);text-decoration:none;transition:color 0.2s;"
+                            onclick="setAuthMode(authMode === 'login' ? 'register' : 'login'); event.preventDefault();"
+                            onmouseover="this.style.color='var(--text-main)'" onmouseout="this.style.color='var(--text-muted)'">
+                            Need an account? Create one
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Promo side -->
+                <div class="auth-promo" style="flex:1;background:linear-gradient(135deg,var(--primary-dark),#030308);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:var(--space-12);">
+                    <div style="position:relative;z-index:2;text-align:center;">
+                        <h3 style="font-size:var(--text-3xl);margin-bottom:var(--space-4);">New to Nexus?</h3>
+                        <p class="caption" style="margin-bottom:var(--space-8);max-width:28ch;margin-left:auto;margin-right:auto;">
+                            Join the network defining the future workforce.
+                        </p>
+                        <button class="btn" style="background:white;color:var(--bg-deep);font-weight:700;"
+                            onclick="setAuthMode('register')">
+                            Create Account
+                        </button>
+                    </div>
+                    <div aria-hidden="true" style="position:absolute;width:280px;height:280px;background:var(--accent);filter:blur(90px);border-radius:50%;top:-40px;left:-40px;opacity:0.35;"></div>
+                    <div aria-hidden="true" style="position:absolute;width:200px;height:200px;background:var(--primary);filter:blur(80px);border-radius:50%;bottom:-30px;right:-30px;opacity:0.3;"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Job Modal -->
+    <div id="job-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-job-title">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeJobModal()" aria-label="Close job details">
+                <ph-x weight="bold"></ph-x>
+            </button>
+            <div class="grid-layout grid-2" style="gap:var(--space-8);">
+                <div>
+                    <h2 id="modal-job-title" style="font-size:var(--text-3xl);margin-bottom:var(--space-3);">Job title</h2>
+                    <p id="modal-job-company" class="caption" style="margin-bottom:var(--space-3);">Company &bull; Location</p>
+                    <div id="modal-job-badges" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-bottom:var(--space-6);"></div>
+
+                    <!-- Hugging Face: AI summary expander (sshleifer/distilbart-cnn-12-6) -->
+                    <div class="glass-card" style="border-color:rgba(13,148,136,0.3);margin-bottom:var(--space-6);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
+                            <p class="label-text text-accent" style="margin:0;">
+                                <ph-sparkle weight="fill" style="vertical-align:middle;margin-right:4px;"></ph-sparkle>
+                                AI Summary
+                            </p>
+                            <button id="modal-summary-btn" class="btn btn-primary" type="button" onclick="runJobSummarize()" style="padding:0.5rem 1rem;font-size:var(--text-sm);">Generate Summary</button>
+                        </div>
+                        <p id="modal-summary-text" class="caption" style="margin-top:var(--space-3);min-height:1em;"></p>
+                        <p id="modal-summary-source" class="caption" style="margin-top:var(--space-2);font-size:0.75rem;opacity:0.7;"></p>
+                    </div>
+
+                    <h4 class="label-text" style="margin-bottom:var(--space-3);">Description</h4>
+                    <p id="modal-job-description" class="body-text text-muted" style="margin-bottom:var(--space-6);white-space:pre-wrap;"></p>
+
+                    <h4 class="label-text" style="margin-bottom:var(--space-3);">Requirements</h4>
+                    <ul id="modal-job-requirements" style="padding-left:1.2rem;display:flex;flex-direction:column;gap:var(--space-2);"></ul>
+                </div>
+                <div>
+                    <div class="glass-card" style="border-color:rgba(245,158,11,0.3);margin-bottom:var(--space-4);">
+                        <p class="label-text text-accent" style="margin-bottom:var(--space-4);">
+                            <ph-brain weight="fill" style="vertical-align:middle;margin-right:4px;"></ph-brain>
+                            AI Analysis
+                        </p>
+                        <div style="margin-bottom:var(--space-4);">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-2);">
+                                <span class="caption">Profile Match</span>
+                                <span id="modal-match-score" style="font-family:var(--font-serif);font-weight:700;font-size:var(--text-xl);color:var(--accent);">—</span>
+                            </div>
+                            <div class="progress-track"><div id="modal-match-bar" class="progress-fill" style="width:0%;"></div></div>
+                        </div>
+                        <div>
+                            <p class="label-text" style="margin-bottom:var(--space-2);">Missing Keywords</p>
+                            <p id="modal-missing-keywords" style="font-family:var(--font-sans);font-size:var(--text-sm);color:#f87171;">Run match scoring to see gaps.</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-gold" style="width:100%;padding:1rem;">
+                        <ph-paper-plane-tilt weight="bold"></ph-paper-plane-tilt>
+                        Apply Now
+                    </button>
+                </div>
+            </div>
+        </div>
+
+                    </div>
+    <!-- JavaScript Implementation -->
+    <script>
+        // ── Phase 4: Three.js — reduced particle count on mobile ──
+        const isMobile = window.innerWidth < 768;
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x030308, 0.0015);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Orb — reduced detail on mobile
+        const orbDetail = isMobile ? 1 : 2;
+        const geometry = new THREE.IcosahedronGeometry(1.8, orbDetail);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x0d9488, wireframe: true, transparent: true, opacity: 0.14
+        });
+        const orb = new THREE.Mesh(geometry, material);
+        scene.add(orb);
+
+        const coreGeo = new THREE.IcosahedronGeometry(1.0, isMobile ? 0 : 1);
+        const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xf59e0b, wireframe: true, transparent: true, opacity: 0.28
+        });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        orb.add(core);
+
+        // Particles — 200 on mobile, 700 on desktop
+        const particlesCount = isMobile ? 200 : 700;
+        const particlesGeo = new THREE.BufferGeometry();
+        const posArray = new Float32Array(particlesCount * 3);
+        for (let i = 0; i < particlesCount * 3; i++) posArray[i] = (Math.random() - 0.5) * 20;
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMat = new THREE.PointsMaterial({ size: 0.02, color: 0xffffff, transparent: true, opacity: 0.35 });
+        const particlesMesh = new THREE.Points(particlesGeo, particlesMat);
+        scene.add(particlesMesh);
+
+        let mouseX = 0, mouseY = 0;
+        const windowHalfX = window.innerWidth / 2;
+        const windowHalfY = window.innerHeight / 2;
+        document.addEventListener('mousemove', e => {
+            mouseX = e.clientX - windowHalfX;
+            mouseY = e.clientY - windowHalfY;
+        });
+
+        const clock = new THREE.Clock();
+        let animActive = true;
+
+        function animate() {
+            if (!animActive) return;
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+            orb.rotation.y += 0.002;
+            orb.rotation.x += 0.001;
+            orb.rotation.y += 0.05 * (mouseX * 0.001 - orb.rotation.y);
+            orb.rotation.x += 0.05 * (mouseY * 0.001 - orb.rotation.x);
+            const s = 1 + Math.sin(t * 2) * 0.05;
+            core.scale.set(s, s, s);
+            particlesMesh.rotation.y = -t * 0.05;
+            particlesMesh.rotation.x = mouseY * 0.0001;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ── Phase 3: URL hash routing ──
+        const VIEW_MAP = {
+            '': 'hero-view',
+            '#home': 'hero-view',
+            '#jobs': 'job-board',
+            '#talent': 'seeker-dash',
+            '#recruiters': 'recruiter-dash',
+            '#admin': 'admin-dash',
+            '#signin': 'auth-view'
+        };
+        const HASH_MAP = {
+            'hero-view': '#home',
+            'job-board': '#jobs',
+            'seeker-dash': '#talent',
+            'recruiter-dash': '#recruiters',
+            'admin-dash': '#admin',
+            'auth-view': '#signin'
+        };
+
+        function switchView(viewId) {
+            // Phase 4: pause Three.js when not on hero
+            animActive = (viewId === 'hero-view');
+            if (animActive) animate();
+
+            document.querySelectorAll('.view-section').forEach(s => {
+                s.style.display = 'none';
+                s.classList.remove('active');
+            });
+
+            const target = document.getElementById(viewId);
+            if (!target) return;
+
+            const flexViews = ['hero-view', 'auth-view'];
+            target.style.display = flexViews.includes(viewId) ? 'flex' : 'block';
+
+            setTimeout(() => target.classList.add('active'), 10);
+
+            // Update nav active state
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            const hash = HASH_MAP[viewId] || '#home';
+            document.querySelectorAll(`.nav-link[onclick*="${viewId}"]`).forEach(l => l.classList.add('active'));
+
+            // Phase 3: update URL hash without scroll jump
+            history.replaceState(null, '', hash);
+
+            // View-specific triggers
+            if (viewId === 'seeker-dash') { populateSkills(); animateCounters(); _restoreCvText(); }
+            if (viewId === 'admin-dash') animateCounters();
+            if (viewId === 'job-board') { showJobsWithSkeleton(); _restoreCvText(); }
+        }
+
+        // Handle back/forward + direct URL load
+        window.addEventListener('hashchange', () => {
+            const viewId = VIEW_MAP[location.hash] || 'hero-view';
+            switchView(viewId);
+        });
+        window.addEventListener('DOMContentLoaded', () => {
+            const viewId = VIEW_MAP[location.hash] || 'hero-view';
+            if (viewId !== 'hero-view') switchView(viewId);
+        });
+
+        // ── Phase 1: Mobile nav ──
+        function toggleMobileNav() {
+            const nav = document.getElementById('mobile-nav');
+            const btn = document.getElementById('hamburger');
+            const isOpen = nav.classList.contains('open');
+            if (isOpen) {
+                closeMobileNav();
+            } else {
+                nav.classList.add('open');
+                btn.classList.add('open');
+                btn.setAttribute('aria-expanded', 'true');
+                // Phase 4: prefers-reduced-motion check
+                const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                nav.querySelectorAll('.nav-link').forEach((link, i) => {
+                    if (prefersReduced) {
+                        link.classList.add('visible');
+                    } else {
+                        setTimeout(() => link.classList.add('visible'), i * 80);
+                    }
+                });
+            }
+        }
+
+        function closeMobileNav() {
+            const nav = document.getElementById('mobile-nav');
+            const btn = document.getElementById('hamburger');
+            nav.classList.remove('open');
+            btn.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+            nav.querySelectorAll('.nav-link').forEach(l => l.classList.remove('visible'));
+        }
+
+        // Close mobile nav on Escape
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                closeMobileNav();
+                closeJobModal();
+            }
+        });
+
+        // ── Role selector ──
+        let currentRole = 'seeker';
+        function selectRole(btn, role) {
+            document.querySelectorAll('.role-btn').forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
+            btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
+            currentRole = role;
+            // Orb color reflects role
+            const colors = { seeker: 0x0d9488, recruiter: 0x14b8a6, admin: 0xf59e0b };
+            material.color.setHex(colors[role] || 0x0d9488);
+        }
+
+        function goToDashboard() {
+            const map = { seeker: 'seeker-dash', recruiter: 'recruiter-dash', admin: 'admin-dash' };
+            switchView(map[currentRole] || 'seeker-dash');
+        }
+
+        // ── Job board: skeleton → real cards from /api/jobs ──
+        function escapeHtml(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // Holds the latest match-scoring result keyed by job id, so re-rendering
+        // (e.g. after sort) preserves the badges. Cleared by clearMatchScores().
+        const _matchByJobId = Object.create(null);
+
+        function renderJobCard(job) {
+            const id = escapeHtml(job._id || job.id || '');
+            const title = escapeHtml(job.title);
+            const company = escapeHtml(job.company);
+            const location = escapeHtml(job.location);
+            const type = escapeHtml(job.type || 'full-time');
+            const category = escapeHtml(job.category || 'Engineering');
+            const seed = encodeURIComponent(job.company || 'job');
+            const match = _matchByJobId[job._id || job.id || ''];
+            const ariaSuffix = match ? (' \u2014 ' + match.score + '% match') : '';
+            const matchHtml = match ? [
+                '  <div class="progress-track" style="margin-top:var(--space-6);">',
+                '    <div class="progress-fill" style="width:', match.score, '%;"></div>',
+                '  </div>',
+                '  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-2);">',
+                '    <span class="caption">AI Match (HF semantic)</span>',
+                '    <span style="font-size:var(--text-sm);font-weight:700;color:var(--accent);">', match.score, '%</span>',
+                '  </div>',
+                match.missing && match.missing.length
+                  ? '  <p class="caption" style="margin-top:var(--space-2);">Missing: ' + match.missing.map(escapeHtml).join(', ') + '</p>'
+                  : ''
+            ].join('') : '';
+            return [
+                '<article class="glass-card job-card" role="button" tabindex="0"',
+                '  data-job-id="', id, '"',
+                '  aria-label="', title, ' at ', company, ariaSuffix, '"',
+                '  onclick="openJobModal(\'', id, '\')" onkeydown="if(event.key===\'Enter\')openJobModal(\'', id, '\')">',
+                '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4);">',
+                '    <img src="https://picsum.photos/seed/', seed, '/40/40" alt="', company, ' logo" width="40" height="40" style="border-radius:10px;">',
+                match
+                  ? '    <span class="badge badge-gold">' + match.score + '% Match</span>'
+                  : '    <span class="badge badge-teal">' + type + '</span>',
+                '  </div>',
+                '  <h3 class="card-title" style="margin-bottom:var(--space-1);">', title, '</h3>',
+                '  <p class="caption" style="margin-bottom:var(--space-4);">', company, ' &bull; ', location, '</p>',
+                '  <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">',
+                '    <span class="badge badge-indigo">', category, '</span>',
+                '  </div>',
+                matchHtml,
+                '</article>'
+            ].join('');
+        }
+
+        // Holds the most recent fetched jobs so the match button can re-use
+        // them without an extra GET /api/jobs round-trip.
+        let _lastJobs = [];
+
+        async function showJobsWithSkeleton() {
+            const skeleton = document.getElementById('job-grid-skeleton');
+            const grid = document.getElementById('job-grid');
+            if (!skeleton || !grid) return;
+            skeleton.style.display = 'grid';
+            grid.style.display = 'none';
+
+            try {
+                const res = await api.getJobs({ limit: 12 });
+                const jobs = (res && res.data && res.data.jobs) || [];
+                _lastJobs = jobs;
+                grid.innerHTML = jobs.length
+                    ? jobs.map(renderJobCard).join('')
+                    : '<p class="caption" style="grid-column:1/-1;text-align:center;">No active jobs yet — check back soon.</p>';
+            } catch (err) {
+                console.warn('Could not load jobs from backend:', err.message);
+                grid.innerHTML =
+                    '<p class="caption" style="grid-column:1/-1;text-align:center;">' +
+                    'Could not reach the GIU Nexus API. Showing nothing for now — please retry.' +
+                    '</p>';
+            } finally {
+                skeleton.style.display = 'none';
+                grid.style.display = 'grid';
+            }
+        }
+
+        // ── AI Match Scoring: paste CV text → POST /api/ai/match ──
+        // Re-renders the loaded job cards with a "X% Match" badge driven by
+        // Hugging Face semantic similarity, plus a "Missing:" caption listing
+        // the requirements not covered by the CV.
+        const CV_TEXT_KEY = 'giu-nexus.cv-text';
+
+        function _restoreCvText() {
+            try {
+                const stored = window.localStorage.getItem(CV_TEXT_KEY);
+                if (!stored) return;
+                const t1 = document.getElementById('match-cv-input');
+                const t2 = document.getElementById('skill-extract-input');
+                if (t1 && !t1.value) t1.value = stored;
+                if (t2 && !t2.value) t2.value = stored;
+            } catch (_e) { /* localStorage may be disabled in some contexts */ }
+        }
+
+        function _persistCvText(text) {
+            try { window.localStorage.setItem(CV_TEXT_KEY, text); } catch (_e) { /* noop */ }
+        }
+
+        async function runMatchScoring() {
+            const ta = document.getElementById('match-cv-input');
+            const status = document.getElementById('match-run-status');
+            const btn = document.getElementById('match-run-btn');
+            const grid = document.getElementById('job-grid');
+            if (!ta || !status || !btn || !grid) return;
+            const cvText = (ta.value || '').trim();
+            if (!cvText) {
+                status.textContent = 'Paste CV text first.';
+                status.style.color = 'var(--accent)';
+                return;
+            }
+            if (!_lastJobs || _lastJobs.length === 0) {
+                status.textContent = 'No jobs loaded — try refreshing.';
+                status.style.color = 'var(--accent)';
+                return;
+            }
+            _persistCvText(cvText);
+            btn.disabled = true;
+            const orig = btn.innerHTML;
+            btn.innerHTML = 'Scoring…';
+            status.textContent = 'Calling Hugging Face…';
+            status.style.color = 'var(--text-soft, rgba(241,245,249,0.7))';
+            try {
+                const payload = {
+                    cvText: cvText,
+                    jobs: _lastJobs.slice(0, 20).map((j) => ({
+                        id: j._id || j.id,
+                        title: j.title || '',
+                        description: j.description || j.title || '',
+                        requirements: Array.isArray(j.requirements) ? j.requirements : []
+                    }))
+                };
+                const res = await window.api.matchScore(payload);
+                const data = (res && res.data) || {};
+                const matches = Array.isArray(data.matches) ? data.matches : [];
+                for (const key of Object.keys(_matchByJobId)) delete _matchByJobId[key];
+                matches.forEach((m) => {
+                    _matchByJobId[String(m.jobId)] = {
+                        score: m.score,
+                        missing: Array.isArray(m.missingRequirements) ? m.missingRequirements : []
+                    };
+                });
+                grid.innerHTML = _lastJobs.map(renderJobCard).join('');
+                const label = data.source === 'huggingface'
+                    ? `Scored ${matches.length} job${matches.length === 1 ? '' : 's'} via ${data.model || 'Hugging Face'}.`
+                    : `Scored ${matches.length} job${matches.length === 1 ? '' : 's'} (Jaccard fallback — HF unavailable).`;
+                status.textContent = label;
+                status.style.color = data.source === 'huggingface' ? 'var(--accent)' : 'var(--text-soft, rgba(241,245,249,0.7))';
+            } catch (err) {
+                status.textContent = 'Match scoring failed: ' + (err && err.message ? err.message : 'unknown error');
+                status.style.color = '#f87171';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        function clearMatchScores() {
+            const grid = document.getElementById('job-grid');
+            const status = document.getElementById('match-run-status');
+            for (const key of Object.keys(_matchByJobId)) delete _matchByJobId[key];
+            if (grid && _lastJobs.length) grid.innerHTML = _lastJobs.map(renderJobCard).join('');
+            if (status) { status.textContent = ''; status.style.color = ''; }
+        }
+
+        // ── AI Skill Extract: paste CV text → POST /api/ai/skills/extract ──
+        // Renders the response into #skill-container using the same .skill-chip
+        // styling the placeholder uses, so the panel shape never changes.
+        function escapeText(value) {
+            const div = document.createElement('div');
+            div.textContent = String(value == null ? '' : value);
+            return div.innerHTML;
+        }
+
+        function renderSkillChips(skills, options) {
+            const container = document.getElementById('skill-container');
+            if (!container) return;
+            container.innerHTML = '';
+            const aiMagic = !!(options && options.aiMagic);
+            (skills || []).forEach((skill, i) => {
+                const chip = document.createElement('span');
+                chip.className = `skill-chip${aiMagic ? ' ai-magic' : ''}`;
+                chip.innerHTML = escapeText(skill);
+                container.appendChild(chip);
+                const { animate } = window._motion || {};
+                const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                if (!prefersReduced && animate) {
+                    animate(chip,
+                        { opacity: [0, 1], scale: [0.85, 1] },
+                        { duration: 0.4, delay: i * 0.06, easing: [0.34, 1.56, 0.64, 1] }
+                    );
+                } else {
+                    chip.style.opacity = '1';
+                    chip.style.transform = 'scale(1)';
+                }
+            });
+        }
+
+        async function runSkillExtraction() {
+            const ta = document.getElementById('skill-extract-input');
+            const status = document.getElementById('skill-extract-status');
+            const btn = document.getElementById('skill-extract-btn');
+            if (!ta || !status || !btn) return;
+            const text = (ta.value || '').trim();
+            if (!text) {
+                status.textContent = 'Paste CV text first.';
+                status.style.color = 'var(--accent)';
+                return;
+            }
+            _persistCvText(text);
+            btn.disabled = true;
+            const origLabel = btn.innerHTML;
+            btn.innerHTML = 'Extracting…';
+            status.textContent = 'Calling Hugging Face…';
+            status.style.color = 'var(--text-soft, rgba(241,245,249,0.7))';
+            try {
+                const res = await window.api.extractSkills(text);
+                const data = (res && res.data) || {};
+                const skills = Array.isArray(data.skills) ? data.skills : [];
+                renderSkillChips(skills, { aiMagic: data.source === 'huggingface' });
+                if (skills.length === 0) {
+                    status.textContent = 'No skills detected. Try a longer or more technical excerpt.';
+                    status.style.color = 'var(--accent)';
+                } else {
+                    const label = data.source === 'huggingface'
+                        ? `Extracted ${skills.length} skill${skills.length === 1 ? '' : 's'} via ${data.model || 'Hugging Face'}.`
+                        : `Extracted ${skills.length} skill${skills.length === 1 ? '' : 's'} (heuristic fallback — HF unavailable).`;
+                    status.textContent = label;
+                    status.style.color = data.source === 'huggingface' ? 'var(--accent)' : 'var(--text-soft, rgba(241,245,249,0.7))';
+                }
+            } catch (err) {
+                status.textContent = 'Skill extraction failed: ' + (err && err.message ? err.message : 'unknown error');
+                status.style.color = '#f87171';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origLabel;
+            }
+        }
+
+        // ── Motion: skill chips stagger ──
+        function populateSkills() {
+            const container = document.getElementById('skill-container');
+            if (!container) return;
+            container.innerHTML = '';
+            const skills = [
+                { name: 'React', score: 95, ai: true },
+                { name: 'Three.js', score: 88, ai: true },
+                { name: 'UI Design', score: 90, ai: false },
+                { name: 'Python', score: 75, ai: false },
+                { name: 'Data Viz', score: 82, ai: true }
+            ];
+            const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            skills.forEach((skill, i) => {
+                const chip = document.createElement('span');
+                chip.className = `skill-chip${skill.ai ? ' ai-magic' : ''}`;
+                chip.innerHTML = `${skill.name} <span style="font-size:0.7em;opacity:0.65">${skill.score}%</span>`;
+                container.appendChild(chip);
+                if (prefersReduced) {
+                    chip.style.opacity = '1';
+                    chip.style.transform = 'scale(1)';
+                } else {
+                    // Motion: spring stagger entrance
+                    const { animate, stagger } = window._motion || {};
+                    if (animate) {
+                        animate(chip,
+                            { opacity: [0, 1], scale: [0.85, 1] },
+                            { duration: 0.4, delay: i * 0.08, easing: [0.34, 1.56, 0.64, 1] }
+                        );
+                    } else {
+                        chip.style.opacity = '1';
+                        chip.style.transform = 'scale(1)';
+                    }
+                }
+            });
+        }
+
+        // ── Motion: counter animation ──
+        function animateCounters() {
+            const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            document.querySelectorAll('.counter').forEach(counter => {
+                const target = +counter.getAttribute('data-target');
+                if (prefersReduced) {
+                    counter.textContent = target.toLocaleString();
+                    return;
+                }
+                // Motion: animate a plain object, update DOM on each frame
+                const { animate } = window._motion || {};
+                if (animate) {
+                    const obj = { value: 0 };
+                    animate(obj, { value: target }, {
+                        duration: 2,
+                        easing: [0.16, 1, 0.3, 1],
+                        onUpdate() { counter.textContent = Math.round(obj.value).toLocaleString(); }
+                    });
+                } else {
+                    counter.textContent = target.toLocaleString();
+                }
+            });
+        }
+
+        // ── Modal ──
+        // Tracks which job is currently rendered in the modal so the AI
+        // Summary button knows which description to send to /api/ai/summarize.
+        let _currentModalJob = null;
+
+        function _setModalText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(value == null ? '' : value);
+        }
+
+        function _populateJobModal(job) {
+            _currentModalJob = job || null;
+            _setModalText('modal-job-title', (job && job.title) || 'Untitled role');
+            const subtitle = ((job && job.company) || '') + ((job && job.location) ? ' \u2022 ' + job.location : '');
+            _setModalText('modal-job-company', subtitle);
+            _setModalText('modal-job-description', (job && job.description) || 'No description provided.');
+
+            const badges = document.getElementById('modal-job-badges');
+            if (badges) {
+                badges.innerHTML = '';
+                const tags = [];
+                if (job && job.category) tags.push({ cls: 'badge-indigo', text: job.category });
+                if (job && job.type) tags.push({ cls: 'badge-teal', text: job.type });
+                if (job && job.salary) tags.push({ cls: 'badge-gold', text: job.salary });
+                tags.forEach((t) => {
+                    const span = document.createElement('span');
+                    span.className = 'badge ' + t.cls;
+                    span.textContent = t.text;
+                    badges.appendChild(span);
+                });
+            }
+
+            const reqList = document.getElementById('modal-job-requirements');
+            if (reqList) {
+                reqList.innerHTML = '';
+                const reqs = (job && Array.isArray(job.requirements)) ? job.requirements : [];
+                if (reqs.length === 0) {
+                    const li = document.createElement('li');
+                    li.className = 'caption';
+                    li.textContent = 'No specific requirements listed.';
+                    reqList.appendChild(li);
+                } else {
+                    reqs.forEach((r) => {
+                        const li = document.createElement('li');
+                        li.className = 'caption';
+                        li.textContent = r;
+                        reqList.appendChild(li);
+                    });
+                }
+            }
+
+            // AI Match panel pulls from the cached match-scoring result if present.
+            const m = job ? _matchByJobId[String(job._id || job.id || '')] : null;
+            const matchScoreEl = document.getElementById('modal-match-score');
+            const matchBarEl = document.getElementById('modal-match-bar');
+            const missingEl = document.getElementById('modal-missing-keywords');
+            if (matchScoreEl) matchScoreEl.textContent = m ? (m.score + '%') : '—';
+            if (matchBarEl) matchBarEl.style.width = m ? (m.score + '%') : '0%';
+            if (missingEl) {
+                if (m && m.missing && m.missing.length) {
+                    missingEl.textContent = m.missing.join(', ');
+                    missingEl.style.color = '#f87171';
+                } else if (m) {
+                    missingEl.textContent = 'No missing requirements detected.';
+                    missingEl.style.color = 'var(--accent)';
+                } else {
+                    missingEl.textContent = 'Run match scoring to see gaps.';
+                    missingEl.style.color = 'var(--text-soft, rgba(241,245,249,0.7))';
+                }
+            }
+
+            // Reset summary panel each time a new job opens.
+            const summaryText = document.getElementById('modal-summary-text');
+            const summarySource = document.getElementById('modal-summary-source');
+            if (summaryText) summaryText.textContent = '';
+            if (summarySource) summarySource.textContent = '';
+        }
+
+        function openJobModal(jobId) {
+            const modal = document.getElementById('job-modal');
+            if (!modal) return;
+            const job = (_lastJobs || []).find(
+                (j) => String(j._id || j.id || '') === String(jobId || '')
+            ) || null;
+            _populateJobModal(job);
+            modal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => {
+                const closeBtn = modal.querySelector('.close-modal');
+                if (closeBtn) closeBtn.focus();
+            }, 100);
+        }
+
+        function closeJobModal() {
+            const modal = document.getElementById('job-modal');
+            if (!modal) return;
+            modal.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        // ── AI Summary: distilbart job-description summarization ──
+        async function runJobSummarize() {
+            const btn = document.getElementById('modal-summary-btn');
+            const out = document.getElementById('modal-summary-text');
+            const meta = document.getElementById('modal-summary-source');
+            if (!btn || !out || !meta) return;
+            const description = (_currentModalJob && _currentModalJob.description) || '';
+            if (!description.trim()) {
+                out.textContent = 'No description to summarize.';
+                meta.textContent = '';
+                return;
+            }
+            btn.disabled = true;
+            const orig = btn.innerHTML;
+            btn.innerHTML = 'Summarizing…';
+            out.textContent = 'Calling Hugging Face…';
+            meta.textContent = '';
+            try {
+                const res = await window.api.summarize(description);
+                const data = (res && res.data) || {};
+                out.textContent = data.summary || '(empty summary)';
+                if (data.source === 'huggingface') {
+                    meta.textContent = 'Generated by ' + (data.model || 'Hugging Face') + '.';
+                } else if (data.source === 'extractive') {
+                    meta.textContent = 'Extractive fallback (HF unavailable).';
+                } else {
+                    meta.textContent = '';
+                }
+            } catch (err) {
+                out.textContent = 'Summary failed: ' + (err && err.message ? err.message : 'unknown error');
+                meta.textContent = '';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        document.getElementById('job-modal').addEventListener('click', e => {
+            if (e.target.id === 'job-modal') closeJobModal();
+        });
+
+        // ── Auth: real API wiring (login + register) ──
+        let authMode = 'login'; // 'login' | 'register'
+
+        function setAuthStatus(message, kind) {
+            const el = document.getElementById('auth-status');
+            if (!el) return;
+            if (!message) {
+                el.style.display = 'none';
+                el.textContent = '';
+                return;
+            }
+            const palette = kind === 'error'
+                ? { bg: 'rgba(239, 68, 68, 0.12)', fg: '#fca5a5', border: 'rgba(239, 68, 68, 0.4)' }
+                : { bg: 'rgba(13, 148, 136, 0.12)', fg: '#5eead4', border: 'rgba(13, 148, 136, 0.4)' };
+            el.style.display = 'block';
+            el.style.background = palette.bg;
+            el.style.color = palette.fg;
+            el.style.border = '1px solid ' + palette.border;
+            el.textContent = message;
+        }
+
+        function setAuthMode(mode) {
+            authMode = mode === 'register' ? 'register' : 'login';
+            const heading = document.getElementById('auth-heading');
+            const sub = document.getElementById('auth-subheading');
+            const btn = document.getElementById('signin-btn');
+            const toggle = document.getElementById('auth-toggle-link');
+            const nameGroup = document.getElementById('auth-name-group');
+            const companyGroup = document.getElementById('auth-company-group');
+            if (authMode === 'register') {
+                heading.textContent = 'Create Your Account';
+                sub.textContent = 'Joining as: ' + (currentRole || 'seeker') + '.';
+                btn.textContent = 'Create Account';
+                toggle.textContent = 'Already have an account? Sign in';
+                nameGroup.style.display = '';
+                // Company is required by the backend validator only for recruiters.
+                companyGroup.style.display = currentRole === 'recruiter' ? '' : 'none';
+            } else {
+                heading.textContent = 'Welcome Back';
+                sub.textContent = 'Access the nexus of talent.';
+                btn.textContent = 'Sign In';
+                toggle.textContent = 'Need an account? Create one';
+                nameGroup.style.display = 'none';
+                companyGroup.style.display = 'none';
+            }
+            setAuthStatus('', '');
+            switchView('auth-view');
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const emailInput = document.getElementById('auth-email');
+            const passInput = document.getElementById('auth-password');
+            const nameInput = document.getElementById('auth-name');
+            const companyInput = document.getElementById('auth-company');
+            const emailErr = document.getElementById('email-error');
+            const passErr = document.getElementById('password-error');
+            const nameErr = document.getElementById('name-error');
+            const companyErr = document.getElementById('company-error');
+            const btn = document.getElementById('signin-btn');
+
+            let valid = true;
+
+            const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRe.test(emailInput.value.trim())) {
+                emailInput.classList.add('error');
+                emailErr.classList.add('visible');
+                valid = false;
+            } else {
+                emailInput.classList.remove('error');
+                emailErr.classList.remove('visible');
+            }
+
+            if (passInput.value.length < 8) {
+                passInput.classList.add('error');
+                passErr.classList.add('visible');
+                valid = false;
+            } else {
+                passInput.classList.remove('error');
+                passErr.classList.remove('visible');
+            }
+
+            if (authMode === 'register') {
+                if (!nameInput.value.trim()) {
+                    nameInput.classList.add('error');
+                    nameErr.classList.add('visible');
+                    valid = false;
+                } else {
+                    nameInput.classList.remove('error');
+                    nameErr.classList.remove('visible');
+                }
+                if (currentRole === 'recruiter') {
+                    if (!companyInput.value.trim()) {
+                        companyInput.classList.add('error');
+                        companyErr.classList.add('visible');
+                        valid = false;
+                    } else {
+                        companyInput.classList.remove('error');
+                        companyErr.classList.remove('visible');
+                    }
+                }
+                if (currentRole === 'admin') {
+                    setAuthStatus('Admin accounts cannot self-register. Pick Job Seeker or Recruiter on the home page.', 'error');
+                    valid = false;
+                }
+            }
+
+            if (!valid) return;
+
+            const originalLabel = btn.textContent;
+            btn.classList.add('loading');
+            btn.disabled = true;
+            btn.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
+            setAuthStatus('', '');
+
+            try {
+                if (authMode === 'register') {
+                    const role = currentRole === 'recruiter' ? 'recruiter' : 'seeker';
+                    const payload = {
+                        name: nameInput.value.trim(),
+                        email: emailInput.value.trim(),
+                        password: passInput.value,
+                        role
+                    };
+                    if (role === 'recruiter') payload.company = companyInput.value.trim();
+                    await api.register(payload);
+                    setAuthStatus('Account created. Redirecting…', 'success');
+                } else {
+                    await api.login({
+                        email: emailInput.value.trim(),
+                        password: passInput.value
+                    });
+                    setAuthStatus('Signed in. Redirecting…', 'success');
+                }
+                const map = { seeker: 'seeker-dash', recruiter: 'recruiter-dash', admin: 'admin-dash' };
+                const nextView = map[currentRole] || 'seeker-dash';
+                setTimeout(() => switchView(nextView), 600);
+            } catch (err) {
+                const msg = err && err.network
+                    ? 'Could not reach the GIU Nexus API. Is the backend running?'
+                    : (err && err.message) || 'Something went wrong. Please try again.';
+                setAuthStatus(msg, 'error');
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
+        }
+
+        // Clear error on input
+        document.getElementById('auth-email').addEventListener('input', function() {
+            this.classList.remove('error');
+            document.getElementById('email-error').classList.remove('visible');
+        });
+        document.getElementById('auth-password').addEventListener('input', function() {
+            this.classList.remove('error');
+            document.getElementById('password-error').classList.remove('visible');
+        });
+        document.getElementById('auth-name').addEventListener('input', function() {
+            this.classList.remove('error');
+            document.getElementById('name-error').classList.remove('visible');
+        });
+        document.getElementById('auth-company').addEventListener('input', function() {
+            this.classList.remove('error');
+            document.getElementById('company-error').classList.remove('visible');
+        });
+
+        // ── Kanban drag-and-drop ──
+        document.querySelectorAll('.kanban-item').forEach(item => {
+            item.addEventListener('dragstart', () => item.classList.add('dragging'));
+            item.addEventListener('dragend', () => item.classList.remove('dragging'));
+        });
+        document.querySelectorAll('.kanban-col').forEach(col => {
+            col.addEventListener('dragover', e => {
+                e.preventDefault();
+                const dragging = document.querySelector('.dragging');
+                if (!dragging) return;
+                const after = getDragAfterElement(col, e.clientY);
+                after ? col.insertBefore(dragging, after) : col.appendChild(dragging);
+            });
+        });
+        function getDragAfterElement(container, y) {
+            const els = [...container.querySelectorAll('.kanban-item:not(.dragging)')];
+            return els.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // ── Motion: hero entrance + inView + scroll ──
+        function initMotionAnimations() {
+            const { animate, stagger, inView, scroll } = window._motion || {};
+            if (!animate) return;
+            const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            if (!prefersReduced) {
+                // Hero entrance sequence
+                animate('.display-text',
+                    { opacity: [0, 1], y: [50, 0] },
+                    { duration: 1.2, easing: [0.16, 1, 0.3, 1] }
+                );
+                animate('.hero-subtitle',
+                    { opacity: [0, 1], y: [30, 0] },
+                    { duration: 1, delay: 0.3, easing: [0.16, 1, 0.3, 1] }
+                );
+                animate('.role-selector',
+                    { opacity: [0, 1], y: [20, 0] },
+                    { duration: 0.8, delay: 0.5, easing: [0.16, 1, 0.3, 1] }
+                );
+                animate('.btn-gold',
+                    { opacity: [0, 1], y: [20, 0] },
+                    { duration: 0.8, delay: 0.7, easing: [0.16, 1, 0.3, 1] }
+                );
+
+                // Hero fragments stagger in
+                const fragments = document.querySelectorAll('.hero-fragment');
+                if (fragments.length) {
+                    animate(fragments,
+                        { opacity: [0, 0.85] },
+                        { duration: 1, delay: stagger(0.2, { start: 1.2 }), easing: 'ease-out' }
+                    );
+                }
+
+                // inView: job cards
+                inView('.job-card', ({ target }) => {
+                    animate(target,
+                        { opacity: [0, 1], y: [24, 0], scale: [0.97, 1] },
+                        { duration: 0.5, easing: [0.16, 1, 0.3, 1] }
+                    );
+                }, { margin: '-60px' });
+
+                // inView: seeker recommendation cards
+                inView('#seeker-dash .glass-card', ({ target }) => {
+                    animate(target,
+                        { opacity: [0, 1], x: [-16, 0] },
+                        { duration: 0.45, easing: [0.16, 1, 0.3, 1] }
+                    );
+                }, { margin: '-40px' });
+
+                // inView: admin stat cards stagger
+                inView('#admin-dash .glass-card', ({ target }) => {
+                    const cards = document.querySelectorAll('#admin-dash .glass-card');
+                    animate(cards,
+                        { opacity: [0, 1], y: [20, 0] },
+                        { duration: 0.5, delay: stagger(0.1), easing: [0.16, 1, 0.3, 1] }
+                    );
+                }, { margin: '-40px' });
+
+                // inView: kanban columns slide in
+                inView('.kanban-col', ({ target }) => {
+                    animate(target,
+                        { opacity: [0, 1], y: [16, 0] },
+                        { duration: 0.4, easing: [0.16, 1, 0.3, 1] }
+                    );
+                }, { margin: '-20px' });
+
+                // Scroll-linked: navbar opacity deepens on scroll
+                scroll(({ y }) => {
+                    const navbar = document.querySelector('.navbar');
+                    if (!navbar) return;
+                    const p = Math.min(y.progress * 10, 1);
+                    navbar.style.background = `rgba(3,3,8,${0.75 + p * 0.2})`;
+                });
+
+            } else {
+                document.querySelectorAll('.hero-fragment').forEach(f => f.style.opacity = '0.85');
+            }
+        }
+
+        // Run when Motion ES module fires ready, or immediately if already loaded
+        if (window._motion) {
+            initMotionAnimations();
+        } else {
+            window.addEventListener('motion-ready', initMotionAnimations, { once: true });
+            // Fallback: if CDN fails after 3s, show elements immediately
+            setTimeout(() => {
+                if (!window._motion) {
+                    document.querySelectorAll('.hero-fragment').forEach(f => f.style.opacity = '0.85');
+                }
+            }, 3000);
+        }
+
+        // ── Scroll: subtle particle parallax (Three.js) ──
+        window.addEventListener('scroll', () => {
+            particlesMesh.position.y = window.scrollY * 0.0004;
+        }, { passive: true });
+
+    </script>
+</body>
+</html>

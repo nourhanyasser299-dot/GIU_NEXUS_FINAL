@@ -1,0 +1,820 @@
+{
+  "info": {
+    "_postman_id": "8b4a2f1e-1c7a-4a3d-92f2-2f1a3d4e5b6c",
+    "name": "GIU Nexus API",
+    "description": "Manual API testing collection for the GIU Nexus backend (HusseinSelim-1977/Nourhan_Project).\n\nCovers every route under `/api`: health, auth, jobs, applications, seeker, recruiter, admin, and the three Hugging Face AI endpoints.\n\n**JWT auto-attach.** Collection-level auth is set to Bearer `{{token}}`. The Login and Register requests run a test script that pulls `data.token` out of the response body and stores it in the `token` collection variable, so every subsequent authenticated request just works without copy-pasting headers.\n\n**Pair this with the Local Dev environment** (`Nourhan-API.postman_environment.json`) for `baseUrl` and seed credentials.\n\nThis collection is **complementary** to the existing Jest + Supertest unit tests (`Backend/__tests__/`) and the Playwright E2E runner (`tests/e2e/run-tests.js`) — it does not replace them. Use Postman for manual exploration, demos, and one-off poking; the automated tests still run on every PR.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "jobId", "value": "", "type": "string" },
+    { "key": "applicationId", "value": "", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Collection-level pre-request: nothing needed.",
+          "// JWT auto-attach is handled by collection-level Bearer auth using {{token}},",
+          "// which is populated by the Login / Register requests' test scripts."
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /api/health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Liveness check. Public, no auth required.\n\n**Expected:** `200 { success: true, message: \"GIU Nexus API is running\" }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success=true', () => pm.expect(pm.response.json().success).to.equal(true));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/auth/register (seeker)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Seeker\",\n  \"email\": \"{{seekerEmail}}\",\n  \"password\": \"{{seekerPassword}}\",\n  \"role\": \"seeker\"\n}"
+            },
+            "description": "Public. Registers a job seeker.\n\n**Body:** `{ name, email, password, role: \"seeker\" }`.\n\n**Expected:** `201 { success: true, data: { token, user } }`. Test script saves `data.token` into the `token` collection variable so subsequent authenticated requests work without copy-pasting headers."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 201 or 409 (already registered)', () => pm.expect([201, 409]).to.include(pm.response.code));",
+                  "if (pm.response.code === 201 && j && j.data && j.data.token) {",
+                  "  pm.collectionVariables.set('token', j.data.token);",
+                  "  console.log('[postman] saved seeker token to collection variable');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/register (recruiter)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Recruiter\",\n  \"email\": \"{{recruiterEmail}}\",\n  \"password\": \"{{recruiterPassword}}\",\n  \"role\": \"recruiter\",\n  \"company\": \"Aurora Labs\"\n}"
+            },
+            "description": "Public. Registers a recruiter. The recruiter is created in `pending` approval status — admin must approve before they can `POST /api/jobs`.\n\n**Body:** `{ name, email, password, role: \"recruiter\", company }`. `company` is required for recruiters per the frontend validator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 201 or 409 (already registered)', () => pm.expect([201, 409]).to.include(pm.response.code));",
+                  "if (pm.response.code === 201 && j && j.data && j.data.token) {",
+                  "  pm.collectionVariables.set('token', j.data.token);",
+                  "  console.log('[postman] saved recruiter token to collection variable');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{seekerEmail}}\",\n  \"password\": \"{{seekerPassword}}\"\n}"
+            },
+            "description": "Public. Logs in an existing user.\n\n**Body:** `{ email, password }`.\n\n**Expected:** `200 { success: true, data: { token, user } }`. Wrong password → `401 { success: false, message: \"Invalid credentials\" }`. Test script saves the token into `{{token}}`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('Status 200 or 401', () => pm.expect([200, 401]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200 && j && j.data && j.data.token) {",
+                  "  pm.collectionVariables.set('token', j.data.token);",
+                  "  console.log('[postman] saved token to collection variable');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Returns the authenticated user. Requires a valid JWT in `Authorization: Bearer {{token}}` (auto-attached by collection-level auth)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 (signed in) or 401 (no/invalid token)', () => pm.expect([200, 401]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "GET /api/jobs (list, public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs?page=1&limit=12",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "12" }
+              ]
+            },
+            "description": "Public list. Supports `page` (>=1) and `limit` (1–50). Returns `{ jobs, pagination }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('jobs array present', () => pm.expect(j.data && Array.isArray(j.data.jobs)).to.be.true);",
+                  "if (j.data && j.data.jobs && j.data.jobs.length) {",
+                  "  pm.collectionVariables.set('jobId', j.data.jobs[0]._id);",
+                  "  console.log('[postman] captured first job id into {{jobId}}:', j.data.jobs[0]._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/jobs/:id (one, public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            },
+            "description": "Public single-job lookup by Mongo `_id`. Use the `{{jobId}}` variable populated by the list request, or paste an explicit id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 404', () => pm.expect([200, 404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/jobs (recruiter only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior React Engineer\",\n  \"company\": \"Aurora Labs\",\n  \"location\": \"Remote\",\n  \"type\": \"remote\",\n  \"description\": \"We are hiring a Senior React Engineer to lead our front-end platform.\",\n  \"requirements\": [\"React\", \"TypeScript\", \"Node.js\"]\n}"
+            },
+            "description": "Recruiter-only. Creates a new job posting.\n\n**Body:** `{ title, company, location, type, description, requirements? }`. `type` must be one of `full-time | part-time | remote | hybrid | on-site`.\n\nNote: the recruiter must be **approved** by an admin before this works (otherwise expect a 403 or similar). Use the Admin → Approve recruiter request first."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 or 401/403', () => pm.expect([201, 401, 403]).to.include(pm.response.code));",
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 201 && j.data && j.data.job && j.data.job._id) {",
+                  "  pm.collectionVariables.set('jobId', j.data.job._id);",
+                  "  console.log('[postman] saved newly-created job id into {{jobId}}:', j.data.job._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/jobs/:id (recruiter only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior React Engineer (updated)\",\n  \"description\": \"Updated description.\",\n  \"type\": \"hybrid\"\n}"
+            },
+            "description": "Recruiter-only. Partial update of a job they own."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200/401/403/404', () => pm.expect([200, 401, 403, 404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/jobs/:id (recruiter or admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "jobs", "{{jobId}}"]
+            },
+            "description": "Recruiter (their own job) or admin (any job)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200/401/403/404', () => pm.expect([200, 401, 403, 404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Applications",
+      "item": [
+        {
+          "name": "POST /api/applications (seeker, multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications"]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "jobId", "value": "{{jobId}}", "type": "text" },
+                { "key": "cv", "type": "file", "src": [], "description": "PDF/DOCX of the seeker's CV. Pick a local file in Postman before sending." }
+              ]
+            },
+            "description": "Seeker-only. Submits an application to a job with a CV upload (multipart/form-data).\n\n**Form fields:**\n- `jobId` (text) — Mongo ObjectId of the target job.\n- `cv` (file) — the candidate's CV; PDF or DOCX. **You must select a local file in Postman before running this request.**\n\nThe controller runs OpenAI skill extraction + match scoring on the CV before persisting the application — expect this request to take a few seconds."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 or 4xx', () => pm.expect(pm.response.code).to.be.oneOf([201, 400, 401, 403, 409]));",
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 201 && j.data && j.data.application && j.data.application._id) {",
+                  "  pm.collectionVariables.set('applicationId', j.data.application._id);",
+                  "  console.log('[postman] saved application id into {{applicationId}}:', j.data.application._id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/applications/my (seeker)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications", "my"]
+            },
+            "description": "Seeker-only. Returns the seeker's own applications."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/applications/job/:jobId (recruiter or admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/job/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications", "job", "{{jobId}}"]
+            },
+            "description": "Recruiter or admin. Lists every application submitted to a given job."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403/404', () => pm.expect([200, 401, 403, 404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/applications/:id/status (recruiter or admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{applicationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "applications", "{{applicationId}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"interview\"\n}"
+            },
+            "description": "Recruiter or admin. Moves an application through the pipeline. Allowed statuses: `screening | interview | offer | rejected`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 4xx', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 401, 403, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Seeker",
+      "item": [
+        {
+          "name": "GET /api/seeker/recommendations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/seeker/recommendations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "seeker", "recommendations"]
+            },
+            "description": "Seeker-only. Ranks open jobs by predicted match against the seeker's most recent CV-derived skills."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/seeker/stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/seeker/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "seeker", "stats"]
+            },
+            "description": "Seeker-only. Returns dashboard stats (applications submitted, interviews, offers, etc.)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recruiter",
+      "item": [
+        {
+          "name": "GET /api/recruiter/jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recruiter/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recruiter", "jobs"]
+            },
+            "description": "Recruiter-only. Returns the jobs posted by the authenticated recruiter."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/recruiter/pipeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recruiter/pipeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recruiter", "pipeline"]
+            },
+            "description": "Recruiter-only. Returns applicants grouped by pipeline status across all of the recruiter's jobs."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "GET /api/admin/stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "stats"]
+            },
+            "description": "Admin-only. Platform-wide counts (users by role, jobs, applications)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/admin/recruiters/pending",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/recruiters/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "recruiters", "pending"]
+            },
+            "description": "Admin-only. Lists recruiter accounts awaiting approval."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403', () => pm.expect([200, 401, 403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/admin/recruiters/:userId/approve",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/recruiters/{{userId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "recruiters", "{{userId}}", "approve"]
+            },
+            "description": "Admin-only. Approves a pending recruiter so they can post jobs.\n\nSet `{{userId}}` in the environment to the target recruiter's user id (visible in the pending list above)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403/404', () => pm.expect([200, 401, 403, 404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/admin/recruiters/:userId/reject",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/recruiters/{{userId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "recruiters", "{{userId}}", "reject"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Company verification failed\"\n}"
+            },
+            "description": "Admin-only. Rejects a pending recruiter with an optional reason."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 4xx', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 401, 403, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/admin/users/:userId",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", "{{userId}}"]
+            },
+            "description": "Admin-only. Permanently deletes a user."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401/403/404', () => pm.expect([200, 401, 403, 404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AI (Hugging Face, JWT-gated)",
+      "item": [
+        {
+          "name": "POST /api/ai/skills/extract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/skills/extract",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "skills", "extract"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"5+ years building React, TypeScript, and Node.js services. Strong with Postgres, Docker, and AWS.\"\n}"
+            },
+            "description": "Auth required. Extracts skill spans from CV / job text using `jjzha/jobbert_skill_extraction` (primary) → `dslim/bert-base-NER` (fallback) → heuristic keyword matcher.\n\n**Body:** `{ text: string (≤8000 chars) }`.\n\n**Returns:** `{ skills: string[], source: 'huggingface' | 'heuristic' | 'empty', model?: string }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401', () => pm.expect([200, 401]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.test('skills array present', () => pm.expect(j.data && Array.isArray(j.data.skills)).to.be.true);",
+                  "  pm.test('source set', () => pm.expect(j.data && j.data.source).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/ai/match",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/match",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "match"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cvText\": \"5+ years building React, TypeScript, Node.js. Strong with Postgres, Docker, AWS.\",\n  \"jobs\": [\n    {\n      \"id\": \"job-react\",\n      \"title\": \"Senior React Engineer\",\n      \"description\": \"We are hiring a Senior React Engineer to lead our front-end platform on TypeScript + Node.js.\",\n      \"requirements\": [\"React\", \"TypeScript\", \"Node.js\", \"Testing\", \"Accessibility\"]\n    },\n    {\n      \"id\": \"job-cloud\",\n      \"title\": \"Cloud Platform Engineer\",\n      \"description\": \"Cloud Platform Engineer focused on Kubernetes, AWS Lambda, Postgres, and CI/CD pipelines.\",\n      \"requirements\": [\"Kubernetes\", \"AWS\", \"Postgres\", \"CI/CD\", \"Terraform\"]\n    },\n    {\n      \"id\": \"job-data\",\n      \"title\": \"Junior Data Scientist\",\n      \"description\": \"Junior Data Scientist working with Python, pandas, scikit-learn, and PyTorch.\",\n      \"requirements\": [\"Python\", \"pandas\", \"scikit-learn\", \"SQL\"]\n    }\n  ]\n}"
+            },
+            "description": "Auth required. Computes a 0–100 match score for each job against a CV using `sentence-transformers/all-MiniLM-L6-v2` (sentence-similarity) → local Jaccard fallback.\n\n**Body:** `{ cvText, jobs: [{ id, title?, description, requirements? }] }`. Both `id` and `description` are required per job; max 20 jobs.\n\n**Returns:** `{ matches: [{ jobId, score, missingRequirements }], source, model? }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401', () => pm.expect([200, 401]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.test('matches array present', () => pm.expect(j.data && Array.isArray(j.data.matches)).to.be.true);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/ai/summarize",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/summarize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "summarize"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"We are hiring a Senior React Engineer to lead our front-end platform. You will architect a TypeScript design-system, mentor mid-level engineers, ship Node.js BFF services, and own the shared component library. Strong opinions on testing, accessibility, and performance budgets are required.\",\n  \"minLength\": 30,\n  \"maxLength\": 120\n}"
+            },
+            "description": "Auth required. Summarizes long-form text via `sshleifer/distilbart-cnn-12-6` → first-two-sentences extractive fallback for inputs under 80 chars or HF errors.\n\n**Body:** `{ text: string, minLength?: number, maxLength?: number }`.\n\n**Returns:** `{ summary: string, source: 'huggingface' | 'extractive' | 'empty', model?: string }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 or 401', () => pm.expect([200, 401]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200) {",
+                  "  const j = pm.response.json();",
+                  "  pm.test('summary present', () => pm.expect(j.data && typeof j.data.summary === 'string').to.be.true);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

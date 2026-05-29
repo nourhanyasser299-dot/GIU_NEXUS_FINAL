@@ -1,0 +1,167 @@
+--- T1: motion.js console clean ---
+  probe: {"hasMotion":true,"motionKeys":["animate","stagger","inView","scroll"],"legacyMotionImport":false,"newMotionImport":true}
+  motionErrors count: 0
+PASS T1: motion ESM import works, no legacy import, no console errors
+
+--- T2: no static demo cards on Jobs board ---
+  probe: {
+  "cardCount": 3,
+  "cardTitles": [
+    "Cloud Platform Engineer",
+    "Junior Data Scientist",
+    "Senior React Engineer"
+  ],
+  "cardsHaveJobIds": true,
+  "jobIds": [
+    "69fe00c20f7dbb9b85e821c7",
+    "69fe00c20f7dbb9b85e821c8",
+    "69fe00c20f7dbb9b85e821c6"
+  ],
+  "noArgOpenCalls": 0,
+  "matchesExactDemoTitle": false
+}
+PASS T2: 3 dynamic cards, all with jobIds; no static demo cards
+
+--- T3: seeker register hides + omits company ---
+  pre-submit groups: {"nameDisplay":"flex","companyDisplay":"none"}
+PASS T3a: company group hidden for seeker, name group visible
+  post-submit: {
+  "hasToken": true,
+  "register": {
+    "status": 201,
+    "body": {
+      "name": "Adversary One",
+      "email": "adv-seeker-1778254883648@example.com",
+      "password": "adv-pass-1",
+      "role": "seeker"
+    },
+    "role": "seeker",
+    "hasCompanyKey": false
+  }
+}
+PASS T3b: seeker register 201, no company key in payload, token persisted
+
+--- T4: recruiter register requires + persists company ---
+  pre-submit groups: {"nameDisplay":"flex","companyDisplay":"flex"}
+PASS T4-pre: company group visible for recruiter
+  4a probe: {"companyHasError":true,"errorMsgVisible":true,"registerCallFired":false}
+PASS T4a: empty company blocks submit + shows red error + fires NO request
+  4b probe: {
+  "hasToken": true,
+  "register": {
+    "status": 201,
+    "body": {
+      "name": "Adversary Two",
+      "email": "adv-rec-1778254883648@example.com",
+      "password": "adv-pass-1",
+      "role": "recruiter",
+      "company": "Adversary Holdings Ltd"
+    },
+    "respUserRole": "recruiter"
+  }
+}
+PASS T4b: recruiter register 201, company in body, role=recruiter, token persisted
+
+--- T5: AI endpoints 401 without JWT ---
+  results: [
+  {
+    "path": "/ai/skills/extract",
+    "status": 401,
+    "message": "Authentication required"
+  },
+  {
+    "path": "/ai/match",
+    "status": 401,
+    "message": "Authentication required"
+  },
+  {
+    "path": "/ai/summarize",
+    "status": 401,
+    "message": "Authentication required"
+  }
+]
+PASS T5: all 3 AI endpoints return 401 + "Authentication required" without JWT
+
+--- T6: AI endpoints 200 with JWT (real HF) ---
+  token re-acquired: true
+  results: [
+  {
+    "path": "/ai/skills/extract",
+    "status": 200,
+    "source": "huggingface",
+    "model": "dslim/bert-base-NER",
+    "skillsLen": 7
+  },
+  {
+    "path": "/ai/match",
+    "status": 200,
+    "source": "huggingface",
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "matchesLen": 3,
+    "firstMatch": {
+      "jobId": "a",
+      "score": 61,
+      "missingRequirements": []
+    }
+  },
+  {
+    "path": "/ai/summarize",
+    "status": 200,
+    "source": "huggingface",
+    "model": "sshleifer/distilbart-cnn-12-6",
+    "summary": "We are hiring a Senior React Engineer to lead our front-end platform . You will "
+  }
+]
+PASS T6: all 3 AI endpoints 200 with JWT, source=huggingface, real model attribution
+
+--- T7: logout brings back 401 ---
+  probe: {
+  "tokenAfterLogout": null,
+  "results": [
+    {
+      "path": "/ai/skills/extract",
+      "status": 401,
+      "message": "Authentication required"
+    },
+    {
+      "path": "/ai/match",
+      "status": 401,
+      "message": "Authentication required"
+    },
+    {
+      "path": "/ai/summarize",
+      "status": 401,
+      "message": "Authentication required"
+    }
+  ]
+}
+PASS T7: token cleared, all 3 AI endpoints back to 401
+
+────────────────────────────────────
+ALL TESTS PASSED
+Page errors captured during run: [
+  {
+    "kind": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  },
+  {
+    "kind": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  },
+  {
+    "kind": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  },
+  {
+    "kind": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  },
+  {
+    "kind": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  },
+  {
+    "kind": "console.error",
+    "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  }
+]
